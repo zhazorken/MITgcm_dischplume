@@ -1,0 +1,101 @@
+# ====================
+# | Model parameters |
+# ====================
+
+# Continuous equation parameters
+ &PARM01
+ vectorInvariantMomentum=.TRUE.,
+ viscAr=0.00000000e-05,
+ viscA4=0.00000000e+00,
+ viscAh=0.00000000e+00,
+ viscA4Grid=0.00000000e-01,
+ viscAhGrid=0.00000000e+00,
+ viscA4GridMax=5.00000000e-01,
+ viscAhGridMax=1.00000000e+00,
+ useAreaViscLength=.FALSE.,
+ useFullLeith=.TRUE.,
+ viscC2leith=0.00000000e+00,
+ viscC2leithD=0.00000000e+00,
+ viscC2smag=0,
+ useSmag3D = .TRUE.,
+ smag3D_coeff=2.00e-02,
+ tempAdvScheme=33,
+ saltAdvScheme=33,
+ diffKrT=1.00000000e-06,
+ diffKrS=1.00000000e-06,
+ diffKhT=0.00000000e+00,
+ diffK4T=0.00000000e+00,
+ multiDimAdvection=.TRUE.,
+ tempStepping=.TRUE.,
+ saltStepping=.TRUE.,
+ staggerTimeStep=.TRUE.,
+ eosType='JMD95Z',
+ no_slip_sides=.TRUE.,
+ no_slip_bottom=.FALSE.,
+ bottomDragLinear=0.00000000e+00,
+ bottomDragQuadratic=0.01500000e+00,
+ sideDragFactor=2.00e+00,
+ f0=1.26303380e-04,
+ fPrime=0.82e-04,
+ beta=0.00000000e+00,
+ gravity=9.81000000e+00,
+ quasiHydrostatic=.FALSE.,
+ nonHydrostatic=.TRUE.,
+ implicitDiffusion=.TRUE.,
+ implicitViscosity=.TRUE.,
+ exactConserv=.TRUE.,
+ useCDscheme=.FALSE.,
+ hFacMin=1.00000000e-01,
+ hFacMinDr=0.2,
+ readBinaryPrec=64,
+ useSingleCpuIO=.TRUE.,
+ useJamartWetPoints=.TRUE.,
+ useJamartMomAdv=.TRUE.,
+ selectAddFluid=1,
+ nonlinFreeSurf=0,
+ select_rStar=0, 
+ debugLevel=1, 
+&
+
+# Elliptic solver parameters
+ &PARM02
+ useSRCGSolver=.TRUE.,
+ cg2dMaxIters=1000,
+ cg2dTargetResidual=1.00000000e-12,
+ &
+
+# Time stepping parameters
+ &PARM03
+ alph_AB=5.00000000e-01,
+ beta_AB=4.16666667e-01,
+ nIter0=8640,
+ abEps=1.00000000e-01,
+ chkptFreq=7.88400000e+06,
+ pChkptFreq=432,
+ taveFreq=0.00000000e+00,
+ dumpFreq=3.15360000e+08,
+ monitorFreq=3.15360000e+07,
+ dumpInitAndLast=.TRUE.,
+ pickupStrictlyMatch=.FALSE.,
+ endTime=432000,
+ deltaT=.1e+00,
+ &
+
+# Gridding parameters
+ &PARM04
+ usingCartesianGrid=.TRUE.,
+ delXfile='delx.bin',
+ delYfile='dely.bin',
+ delR= 200*1.,
+ &
+
+
+# Input datasets
+ &PARM05
+ bathyFile='bathymetry.bin',
+ hydrogThetaFile='tempini.bin',
+ hydrogSaltFile ='saltini.bin',
+# uVelInitFile = 'uvelini.bin',
+# vVelInitFile = 'vvelini.bin',
+&
+

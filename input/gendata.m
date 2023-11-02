@@ -1,0 +1,268 @@
+
+%% Initial settings
+
+% Accuracy of binary files
+acc = 'real*8';
+
+% Number of time levels for time varying forcing
+nt = 1;
+
+%% Gridding
+
+% Dimensions of grid
+nx=510;  %27 cores each 53 x
+ny=600;   %8 cores each 52
+nz=200; Nr=nz;
+
+% Starting Cell resolution (m)
+deltaX = 1.9608;
+deltaY = 1.9608;
+deltaZ = 1;
+
+delx = zeros(1,nx);
+delx(:) = deltaX;
+
+%dx stretching (1 m finest resolution)
+bigdeltaX=5*deltaX;
+
+delx(1:round(nx/2)) = linspace(bigdeltaX, deltaX,round(nx/2));
+delx(round(7*nx/10):round(9*nx/10))= linspace(deltaX, deltaX/2, round(2*nx/10)+1);
+delx(round(9*nx/10):end)= deltaX/2;
+
+fjwidth=992; %Fjord Width
+lx=sum(delx);
+
+fid=fopen('delx.bin','w','b'); fwrite(fid,delx,acc);fclose(fid);
+
+deltaYsmall=1;
+dely = zeros(1,ny);
+dely(:) = deltaY;
+
+%dy stretching near discharge plume (1 m finest resolution)
+dely(1:round(ny/2)-1)=(-.5*tanh(([1:round(ny/2)-1]-(ny/2-100))/30)+1.5);
+dely(round(ny/2):end)=(+.5*tanh(([round(ny/2):ny]-(ny/2+100))/30)+1.5);
+
+ly=sum(dely);
+
+nybdy=round(125); %side walls
+
+fid=fopen('dely.bin','w','b'); fwrite(fid,dely,acc);fclose(fid);
+
+
+%% Bathymetry
+
+% Vertical cell spacing (for T and S profiles)
+zprof = -((0.5*deltaZ):deltaZ:((nz*deltaZ)-(0.5*deltaZ)));
+
+% Bathymetry
+bathymetry = zeros(nx,ny);
+bathymetry(:) = -deltaZ*nz;
+bathymetry(end,:) = 0; % glacier front
+clear xx yy
+[xx, yy] = meshgrid( (1 : nx )' , (1 : ny ) );
+
+xx=xx'*deltaX;
+  xx   = cumsum(repmat(delx,ny,1)');
+  yy   = cumsum(repmat(dely,nx,1),2);
+  
+hsill2= 0; % no sill
+h2loc=8000;
+mouth=10000;
+std2=500;
+h_bo1 = hsill2* exp( - ((xx-(h2loc))./ (std2)).^2 );
+h_bo=h_bo1;
+h_bo(:,:) = h_bo1(:,:)-200;
+hplat = -200;
+bathymetry=h_bo;
+bathymetry(round(h2loc/deltaX):end,:) = max(h_bo(round(h2loc/deltaX):end,:), hplat);
+
+
+turn=2000/deltaX;
+
+ileft= round((50000)/delx(1))+2;
+yoffset=0;
+
+jbot=round((ny-8000/deltaY)/2)-round(yoffset/deltaY);
+jtop=ny-round((ny-8000/deltaY)/2)+1-round(yoffset/deltaY);
+
+     for j=1:nybdy
+
+bathymetry(:,j) = max(-200, abs(bathymetry(:,j+1))/(nybdy-1)^2*(nybdy-j)^2 - abs(bathymetry(:,j+1)));
+bathymetry(:,end-j) = max(-200, abs(bathymetry(:,j+1))/(nybdy-1)^2*(nybdy-j)^2 - abs(bathymetry(:,j+1)));
+     end
+
+  
+
+
+bathymetry(end,:)=0;
+bathymetry(:,end)=0;
+bathymetry(:,1)=0;
+
+
+bathymetry(end-11:end,:)=0;
+bathymetry(nx-11,round(ny/2)-50:round(ny/2)+50)=-175;
+
+for jj=round(ny/2)-50:round(ny/2)
+bathymetry(end-11:end-11+round((jj-(round(ny/2)-50))*0.2),jj)=-175;
+end
+for jj=round(ny/2)+1:round(ny/2)+50
+bathymetry(end-11:end-11+round(((round(ny/2)+50-jj))*0.2),jj)=-175;
+end
+
+pcolor(xx(:,1), yy(1,:),bathymetry')
+
+% write bathymetry
+fid=fopen('bathymetry.bin','w','b'); fwrite(fid,bathymetry,acc);fclose(fid);
+%% Temperature and salinity profiles
+% These are used to write initial conditions, boundary conditions etc
+
+saltini = zeros(nx,ny,nz);
+tempini = zeros(nx,ny,nz);
+uvelini = zeros(nx,ny,nz);
+vvelini = zeros(nx,ny,nz);
+
+
+Nr=200;
+tempprof=(7+0.9*tanh(.5*(([1:Nr]*100/Nr-20)/2*Nr/100)));
+saltprof=(26+2*tanh(.5*(([1:Nr]*100/Nr-20)/2)));
+
+tempprof(31/100*Nr:end)=linspace(tempprof(31/100*Nr),tempprof(31/100*Nr)+.1 ,139);
+saltprof(31/100*Nr:end)=linspace(saltprof(31/100*Nr),saltprof(31/100*Nr)+.1 ,139);
+
+saltini = zeros(nx,ny,nz);
+tempini = zeros(nx,ny,nz);
+
+saltini= permute(repmat(saltprof',1,nx,ny),[2 3 1]);
+tempini= permute(repmat(tempprof',1,nx,ny),[2 3 1]);
+
+ 
+fid=fopen('saltini.bin','w','b'); fwrite(fid,saltini,acc);fclose(fid);
+clear data
+ 
+fid=fopen('tempini.bin','w','b'); fwrite(fid,tempini,acc);fclose(fid);
+clear data
+
+
+%% Subglacial runoff
+
+% Where (in the along fjord direction) is the glacier front?
+icefront = nx-1;
+
+% Define the velocity (m/s) of subglacial runoff as it enters the fjord.
+% 1 m/s seems a reasonable value (results not sensitive to this value).
+wsg = 1;
+
+% Templates
+runoffVel   = zeros(nx,ny);
+runoffRad   = zeros(nx,ny);
+plumeMask   = zeros(nx,ny);
+
+npy=round(ly/deltaX);
+
+runoff = 150/300;
+
+plumeMask(icefront,3:end-2) = 2;
+plumeMask(icefront-2:icefront,round(ny/2)-49:round(ny/2)+50) = 3;
+
+% Define runoff velocity in each location (as specified above)
+runoffVel(icefront,3:end-2) = 0;
+runoffVel(icefront-2:icefront,round(ny/2)-49:round(ny/2)+50) = wsg; % at y midpoint = =6
+
+% Calculate channel radius to give runoff at velocity
+runoffRad(icefront,3:end-2) = 0;
+runoffRad(icefront-2:icefront,round(ny/2)-49:round(ny/2)+50) = sqrt(2*runoff/(pi*wsg));%.56 m^3/s
+
+% Write files.
+fid=fopen('runoffVel.bin','w','b'); fwrite(fid,runoffVel,acc);fclose(fid);
+fid=fopen('runoffRad.bin','w','b'); fwrite(fid,runoffRad,acc);fclose(fid);
+fid=fopen('plumeMask.bin','w','b'); fwrite(fid,plumeMask,acc);fclose(fid);
+
+%% Boundary conditions
+
+% Eastern boundary conditions (other boundaries closed in this example)
+
+shelfz=nz;
+clear EBCu EBCs EBCt  WBCu WBCs WBCt NBCt NBCu NBCs 
+EBCu = zeros(ny,shelfz);
+EBCs = zeros(ny,shelfz);
+EBCt = zeros(ny,shelfz);
+EBCv = zeros(ny,shelfz);
+
+WBCu = zeros(ny,shelfz);
+WBCs = zeros(ny,shelfz);
+WBCt = zeros(ny,shelfz);
+WBCv = zeros(ny,shelfz);
+
+NBCu = zeros(nx,shelfz);
+NBCs = zeros(nx,shelfz);
+NBCt = zeros(nx,shelfz);
+NBCv = zeros(nx,shelfz);
+
+SBCu = zeros(nx,shelfz);
+SBCs = zeros(nx,shelfz);
+SBCt = zeros(nx,shelfz);
+SBCv = zeros(nx,shelfz);
+
+%discharge location
+for i = 1:nz %%%%%%%%%%%%%
+        EBCt(:,i) = 0.01;
+        EBCs(:,i) = 0.01;
+        EBCv(:,i) = 0;
+        EBCu(round(ny/2)-1: round(ny/2)+1, nz-1:nz) = 200/deltaY/deltaZ/6;
+end
+
+for i = 1:nz %%%%%%%%%%%%%
+        WBCt(:,i) = tempprof(i);
+        WBCs(:,i) = saltprof(i);
+        WBCv(:,i) = zeros;
+        WBCu(:,i) = zeros;
+       % NBCv(:,i) = (50-i)/50*-.2;
+       % SBCv(:,i) = (50-i)/50*-.2;
+        
+end
+
+
+for i = 1:nz %%%%%%%%%%%%%
+        NBCt(:,i) = repmat(linspace(tempini(1,1,i),tempini(end,1,i), nx),1)';
+        NBCs(:,i) = repmat(linspace(saltini(1,1,i),saltini(end,1,i), nx),1)';
+        
+        SBCt(:,i) = repmat(linspace(tempini(1,1,i),tempini(end,1,i), nx),1)';
+        SBCs(:,i) = repmat(linspace(saltini(1,1,i),saltini(end,1,i), nx),1)';
+end
+
+for i=1:size(NBCt,1)
+    for j=1:size(NBCt,2)
+        if NBCt(i,j)==0
+            NBCt(i,j)=0.01;
+        end
+    end
+end
+
+for i=1:size(SBCt,1)
+    for j=1:size(SBCt,2)
+        if SBCt(i,j)==0
+            SBCt(i,j)=0.01;
+        end
+    end
+end
+
+% Apply barotropic velocity to balance input of runoff
+
+fjordMouthCrossSection = -sum(bathymetry(end,:))*deltaY;
+fjordMouthVelocity = runoff/fjordMouthCrossSection;
+
+% Out-of-domain velocity is positive at eastern boundary
+EBCu(:) = fjordMouthVelocity;
+WBCu(:) = fjordMouthVelocity*deltaY*ny/fjwidth;
+
+fid=fopen('WBCu.bin','w','b'); fwrite(fid,WBCu,acc);fclose(fid);
+fid=fopen('WBCs.bin','w','b'); fwrite(fid,WBCs,acc);fclose(fid);
+fid=fopen('WBCt.bin','w','b'); fwrite(fid,WBCt,acc);fclose(fid);
+fid=fopen('WBCv.bin','w','b'); fwrite(fid,WBCv,acc);fclose(fid);
+
+fid=fopen('EBCu.bin','w','b'); fwrite(fid,EBCu,acc);fclose(fid);
+fid=fopen('EBCs.bin','w','b'); fwrite(fid,EBCs,acc);fclose(fid);
+fid=fopen('EBCt.bin','w','b'); fwrite(fid,EBCt,acc);fclose(fid);
+fid=fopen('EBCv.bin','w','b'); fwrite(fid,EBCv,acc);fclose(fid);
+
+
